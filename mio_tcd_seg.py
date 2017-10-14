@@ -1,6 +1,9 @@
 # coding:utf-8
 import glob
 import csv
+import json
+from collections import OrderedDict
+
 import cv2
 import time
 import os
@@ -65,6 +68,28 @@ def load_annoataion(p):
             else:
                 text_tags.append(False)
         return np.array(text_polys, dtype=np.float32), np.array(text_tags, dtype=np.bool)
+class JsonHandler():
+    def load_annotations(self,p):
+        '''
+            load annotation from the text file
+            :param p:
+            :return:
+        '''
+        self.jsonfile = json.load(open(p, "r"), object_pairs_hook=OrderedDict)
+
+
+    def __handle_json_inner(self, value):
+        annotation = value['annotations']
+        polygons = [
+            (x['classification'], self.get_pts(x['outline_xy']))
+            for x in annotation]
+        jpgfile = value['external_id'] + '.jpg'
+        return jpgfile, polygons
+
+    def get_pts(self,poly):
+        rect = cv2.minAreaRect(poly)
+        box = cv2.boxPoints(rect)
+        return np.int0(box)
 
 
 def polygon_area(poly):

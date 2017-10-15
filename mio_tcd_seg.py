@@ -17,7 +17,9 @@ import tensorflow as tf
 
 from data_util import GeneratorEnqueuer
 
-tf.app.flags.DEFINE_string('training_data_path', 'training_samples',
+pjoin = os.path.join
+
+tf.app.flags.DEFINE_string('training_data_path', '/data/mio_tcd_seg',
                            'training dataset to use')
 tf.app.flags.DEFINE_integer('max_image_large_side', 1280,
                             'max image size of training')
@@ -40,7 +42,7 @@ def get_images():
     files = []
     for ext in ['jpg', 'png', 'jpeg', 'JPG']:
         files.extend(glob.glob(
-            os.path.join(FLAGS.training_data_path, '*.{}'.format(ext))))
+            os.path.join(FLAGS.training_data_path,'images', '*.{}'.format(ext))))
     return files
 
 
@@ -68,14 +70,28 @@ def load_annoataion(p):
             else:
                 text_tags.append(False)
         return np.array(text_polys, dtype=np.float32), np.array(text_tags, dtype=np.bool)
+
 class JsonHandler():
+    def __init__(self,path):
+        self.path = path
+        self.json = 'internal_cvpr2016.json'
+        file = pjoin(self.path, self.json)
+        jsonfile = json.load(open(file, "r"), object_pairs_hook=OrderedDict)
+        self.datas = OrderedDict([self.__handle_json_inner(v) for v in jsonfile.values()])
+
     def load_annotations(self,p):
         '''
             load annotation from the text file
             :param p:
             :return:
         '''
-        self.jsonfile = json.load(open(p, "r"), object_pairs_hook=OrderedDict)
+        text_polys = []
+        text_tags = []
+        for cls,[[x1, y1], [x2, y2], [x3, y3], [x4, y4]] in self.datas[p]:
+            text_polys.append([[x1, y1], [x2, y2], [x3, y3], [x4, y4]])
+            text_tags.append(True)
+        return np.array(text_polys, dtype=np.float32), np.array(text_tags, dtype=np.bool)
+
 
 
     def __handle_json_inner(self, value):
@@ -84,10 +100,10 @@ class JsonHandler():
             (x['classification'], self.get_pts(x['outline_xy']))
             for x in annotation]
         jpgfile = value['external_id'] + '.jpg'
-        return jpgfile, polygons
+        return pjoin(self.path,'images',jpgfile), polygons
 
     def get_pts(self,poly):
-        rect = cv2.minAreaRect(poly)
+        rect = cv2.minAreaRect(np.array(poly))
         box = cv2.boxPoints(rect)
         return np.int0(box)
 
@@ -613,6 +629,7 @@ def generator(input_size=512, batch_size=32,
     print('{} training images in {}'.format(
         image_list.shape[0], FLAGS.training_data_path))
     index = np.arange(0, image_list.shape[0])
+    jsonHandler = JsonHandler(FLAGS.training_data_path)
     while True:
         np.random.shuffle(index)
         images = []
@@ -626,11 +643,8 @@ def generator(input_size=512, batch_size=32,
                 im = cv2.imread(im_fn)
                 # print im_fn
                 h, w, _ = im.shape
-                txt_fn = im_fn.replace(os.path.basename(im_fn).split('.')[1], 'txt')
-                if not os.path.exists(txt_fn):
-                    continue
 
-                text_polys, text_tags = load_annoataion(txt_fn)
+                text_polys, text_tags = jsonHandler.load_annotations(im_fn)
 
                 text_polys, text_tags = check_and_validate_polys(text_polys, text_tags, (h, w))
                 # if text_polys.shape[0] == 0:
@@ -766,7 +780,7 @@ def get_batch(num_workers, **kwargs):
 if __name__ == '__main__':
     x = get_batch(num_workers=1,
               input_size=512,
-              batch_size=1)
+              batch_size=1,vis=True)
     while True:
         y = next(x)
         print(y)

@@ -18,6 +18,7 @@ tf.app.flags.DEFINE_string('pretrained_model_path', None, '')
 
 import model
 import icdar
+import mio_tcd_seg
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -144,9 +145,9 @@ def main(argv=None):
             if FLAGS.pretrained_model_path is not None:
                 variable_restore_op(sess)
 
-        data_generator = icdar.get_batch(num_workers=FLAGS.num_readers,
-                                         input_size=FLAGS.input_size,
-                                         batch_size=FLAGS.batch_size_per_gpu * len(gpus))
+        data_generator = mio_tcd_seg.get_batch(num_workers=FLAGS.num_readers,
+                                            input_size=FLAGS.input_size,
+                                            batch_size=FLAGS.batch_size_per_gpu * len(gpus))
 
         start = time.time()
         for step in range(FLAGS.max_steps):

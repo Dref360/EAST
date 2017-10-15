@@ -12,27 +12,27 @@ import scipy.optimize
 import matplotlib.pyplot as plt
 import matplotlib.patches as Patches
 from shapely.geometry import Polygon
-
+import pickle
 import tensorflow as tf
 
 from data_util import GeneratorEnqueuer
 
 pjoin = os.path.join
-
-tf.app.flags.DEFINE_string('training_data_path', '/data/mio_tcd_seg',
-                           'training dataset to use')
-tf.app.flags.DEFINE_integer('max_image_large_side', 1280,
-                            'max image size of training')
-tf.app.flags.DEFINE_integer('max_text_size', 800,
-                            'if the text in the input image is bigger than this, then we resize'
-                            'the image according to this')
-tf.app.flags.DEFINE_integer('min_text_size', 10,
-                            'if the text size is smaller than this, we ignore it during training')
-tf.app.flags.DEFINE_float('min_crop_side_ratio', 0.1,
-                          'when doing random crop from input image, the'
-                          'min length of min(H, W')
-tf.app.flags.DEFINE_string('geometry', 'RBOX',
-                           'which geometry to generate, RBOX or QUAD')
+if __name__ == '__main__':
+    tf.app.flags.DEFINE_string('training_data_path', '/data/mio_tcd_seg',
+                               'training dataset to use')
+    tf.app.flags.DEFINE_integer('max_image_large_side', 1280,
+                                'max image size of training')
+    tf.app.flags.DEFINE_integer('max_text_size', 800,
+                                'if the text in the input image is bigger than this, then we resize'
+                                'the image according to this')
+    tf.app.flags.DEFINE_integer('min_text_size', 10,
+                                'if the text size is smaller than this, we ignore it during training')
+    tf.app.flags.DEFINE_float('min_crop_side_ratio', 0.1,
+                              'when doing random crop from input image, the'
+                              'min length of min(H, W')
+    tf.app.flags.DEFINE_string('geometry', 'RBOX',
+                               'which geometry to generate, RBOX or QUAD')
 
 
 FLAGS = tf.app.flags.FLAGS
@@ -78,6 +78,12 @@ class JsonHandler():
         file = pjoin(self.path, self.json)
         jsonfile = json.load(open(file, "r"), object_pairs_hook=OrderedDict)
         self.datas = OrderedDict([self.__handle_json_inner(v) for v in jsonfile.values()])
+        self.gt_train = 'gt_train.csv'
+        self.gt_test = 'gt_test.csv'
+        with open(pjoin(self.path, self.gt_train)) as f:
+            self.gt_train = set([pjoin(self.path,'images',x[0]+'.jpg') for x in csv.reader(f)])
+        with open(pjoin(self.path, self.gt_test)) as f:
+            self.gt_test = set([pjoin(self.path,'images',x[0]+'.jpg') for x in csv.reader(f)])
 
     def load_annotations(self,p):
         '''
@@ -621,15 +627,20 @@ def generate_rbox(im_size, polys, tags):
     return score_map, geo_map, training_mask
 
 
-def generator(input_size=512, batch_size=32,
+def generator(jsonHandler,input_size=512, batch_size=32,
               background_ratio=3./8,
               random_scale=np.array([0.5, 1, 2.0, 3.0]),
               vis=False):
-    image_list = np.array(get_images())
+    if os.path.exists('image_list.pkl'):
+        image_list = pickle.load(open('image_list.pkl','rb'))
+    else:
+        image_list = np.array([k for k in get_images() if k in jsonHandler.gt_train])
+        pickle.dump(image_list,open('image_list.pkl','wb'))
+
     print('{} training images in {}'.format(
         image_list.shape[0], FLAGS.training_data_path))
     index = np.arange(0, image_list.shape[0])
-    jsonHandler = JsonHandler(FLAGS.training_data_path)
+
     while True:
         np.random.shuffle(index)
         images = []
@@ -759,7 +770,8 @@ def generator(input_size=512, batch_size=32,
 
 def get_batch(num_workers, **kwargs):
     try:
-        enqueuer = GeneratorEnqueuer(generator(**kwargs), use_multiprocessing=True)
+        jsonHandler = JsonHandler(FLAGS.training_data_path)
+        enqueuer = GeneratorEnqueuer(generator(jsonHandler,**kwargs), use_multiprocessing=True)
         enqueuer.start(max_queue_size=24, workers=num_workers)
         generator_output = None
         while True:

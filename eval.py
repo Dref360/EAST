@@ -16,7 +16,8 @@ tf.app.flags.DEFINE_bool('no_write_images', False, 'do not write images')
 
 import model
 from icdar import restore_rectangle
-
+from mio_tcd_seg import JsonHandler
+pjoin = os.path.join
 FLAGS = tf.app.flags.FLAGS
 
 def get_images():
@@ -26,10 +27,11 @@ def get_images():
     '''
     files = []
     exts = ['jpg', 'png', 'jpeg', 'JPG']
-    for parent, dirnames, filenames in os.walk(FLAGS.test_data_path):
+    jsonHandler = JsonHandler(FLAGS.test_data_path)
+    for parent, dirnames, filenames in os.walk(os.path.join(FLAGS.test_data_path,'images')):
         for filename in filenames:
             for ext in exts:
-                if filename.endswith(ext):
+                if filename.endswith(ext) and pjoin(parent,filename) in jsonHandler.gt_test:
                     files.append(os.path.join(parent, filename))
                     break
     print('Find {} images'.format(len(files)))

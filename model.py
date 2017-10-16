@@ -27,7 +27,7 @@ def mean_image_subtraction(images, means=[123.68, 116.78, 103.94]):
     channels = tf.split(axis=3, num_or_size_splits=num_channels, value=images)
     for i in range(num_channels):
         channels[i] -= means[i]
-    return tf.concat(axis=3, values=channels)
+    return tf.concat(axis=3, values=channels) / 128.
 
 
 def model(images, weight_decay=1e-5, is_training=True):

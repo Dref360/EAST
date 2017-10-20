@@ -792,7 +792,8 @@ def get_batch(num_workers, **kwargs):
 if __name__ == '__main__':
     x = get_batch(num_workers=1,
               input_size=512,
-              batch_size=1,vis=True)
+              batch_size=1,vis=False)
     while True:
         y = next(x)
-        print(y)
+        print(y[0][0].max())
+        #print(y)

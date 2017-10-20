@@ -15,6 +15,7 @@ tf.app.flags.DEFINE_boolean('restore', False, 'whether to resotre from checkpoin
 tf.app.flags.DEFINE_integer('save_checkpoint_steps', 1000, '')
 tf.app.flags.DEFINE_integer('save_summary_steps', 100, '')
 tf.app.flags.DEFINE_string('pretrained_model_path', None, '')
+import keras.backend as K
 
 import model
 import icdar
@@ -89,8 +90,8 @@ def main(argv=None):
     learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step, decay_steps=10000, decay_rate=0.94, staircase=True)
     # add summary
     tf.summary.scalar('learning_rate', learning_rate)
-    opt = tf.train.AdamOptimizer(learning_rate)
-    # opt = tf.train.MomentumOptimizer(learning_rate, 0.9)
+    #opt = tf.train.AdamOptimizer(learning_rate)
+    opt = tf.train.MomentumOptimizer(learning_rate, 0.9)
 
 
     # split
@@ -155,7 +156,9 @@ def main(argv=None):
             ml, tl, _ = sess.run([model_loss, total_loss, train_op], feed_dict={input_images: data[0],
                                                                                 input_score_maps: data[2],
                                                                                 input_geo_maps: data[3],
-                                                                                input_training_masks: data[4]})
+                                                                                input_training_masks: data[4],
+                                                                                K.learning_phase():True})
+
             if np.isnan(tl):
                 print('Loss diverged, stop training')
                 break

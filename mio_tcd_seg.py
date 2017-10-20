@@ -21,7 +21,7 @@ pjoin = os.path.join
 if __name__ == '__main__':
     tf.app.flags.DEFINE_string('training_data_path', '/data/mio_tcd_seg',
                                'training dataset to use')
-    tf.app.flags.DEFINE_integer('max_image_large_side', 1280,
+    tf.app.flags.DEFINE_integer('max_image_large_side', 720,
                                 'max image size of training')
     tf.app.flags.DEFINE_integer('max_text_size', 800,
                                 'if the text in the input image is bigger than this, then we resize'

@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from keras import Input
-
+from xception.xception import Xception
 from tensorflow.contrib import slim
 
 tf.app.flags.DEFINE_integer('text_scale', 512, '')
@@ -38,8 +38,8 @@ def model(images, weight_decay=1e-5, is_training=True):
     images = mean_image_subtraction(images)
 
     with slim.arg_scope(resnet_v1.resnet_arg_scope(weight_decay=weight_decay)):
-        from xception.xception import Xception
-        logits_Xcept = Xception(False,weights=None,input_tensor=images)
+        with tf.name_scope('xception'):
+            logits_Xcept = Xception(False,weights=None,input_tensor=images,input_shape=[512, 512, 3])
         #logits, end_points = resnet_v1.resnet_v1_50(images, is_training=is_training, scope='resnet_v1_50')
 
     with tf.variable_scope('feature_fusion', values=[]):
@@ -54,32 +54,50 @@ def model(images, weight_decay=1e-5, is_training=True):
                             normalizer_fn=slim.batch_norm,
                             normalizer_params=batch_norm_params,
                             weights_regularizer=slim.l2_regularizer(weight_decay)):
-            """f = [end_points['pool5'], end_points['pool4'],
-                 end_points['pool3'], end_points['pool2']]
-            for i in range(4):
-                print('Shape of f_{} {}'.format(i, f[i].shape))
-            g = [None, None, None, None]
-            h = [None, None, None, None]
+            f = [logits_Xcept.output,logits_Xcept.get_layer('block13_pool'), logits_Xcept.get_layer('block4_pool'),
+                 logits_Xcept.get_layer('block3_pool')]
+
+            f_shapes = [f_.output._keras_shape if fi != 0 else f_._keras_shape for fi,f_ in enumerate(f)]
+            f_tensors = [f_.output if fi != 0 else f_ for fi, f_ in enumerate(f)]
+            print(f_shapes)
+
+            acc = None
             num_outputs = [None, 128, 64, 32]
+            for i in range(1,4):
+                if f_shapes[i-1] != f_shapes[i]:
+                    dum = unpool(f_tensors[i-1]) if acc is None else unpool(acc)
+                else:
+                    dum = f_tensors[i-1] if acc is None else acc
+                tmp = tf.concat([dum, f_tensors[i]], axis=-1)
+                acc = slim.conv2d(slim.conv2d(tmp,num_outputs[i],1),num_outputs[i],3)
+
+            acc = slim.conv2d_transpose(acc,num_outputs[-1],3,2)
+
+
+            """for i in range(4):
+                print('Shape of f_{} {}'.format(i, f[i].shape))"""
+            """g = [None, None, None, None]
+            h = [None, None, None, None]
+
             for i in range(4):
                 if i == 0:
                     h[i] = f[i]
                 else:
-                    c1_1 = slim.conv2d(tf.concat([g[i-1], f[i]], axis=-1), num_outputs[i], 1)
+                    c1_1 = slim.conv2d(tf.concat([g[i-1], f[i].output], axis=-1), num_outputs[i], 1)
                     h[i] = slim.conv2d(c1_1, num_outputs[i], 3)
                 if i <= 2:
                     g[i] = unpool(h[i])
                 else:
-                    g[i] = slim.conv2d(h[i], num_outputs[i], 3)
-                print('Shape of h_{} {}, g_{} {}'.format(i, h[i].shape, i, g[i].shape))"""
+                    g[i] = slim.conv2d(h[i], num_outputs[i], 3)"""
+                #print('Shape of h_{} {}, g_{} {}'.format(i, h[i].shape, i, g[i].shape))
 
             # here we use a slightly different way for regression part,
             # we first use a sigmoid to limit the regression range, and also
             # this is do with the angle map
-            F_score = slim.conv2d(logits_Xcept.output, 1, 1, activation_fn=tf.nn.sigmoid, normalizer_fn=None)
+            F_score = slim.conv2d(acc, 1, 1, activation_fn=tf.nn.sigmoid, normalizer_fn=None)
             # 4 channel of axis aligned bbox and 1 channel rotation angle
-            geo_map = slim.conv2d(logits_Xcept.output, 4, 1, activation_fn=tf.nn.sigmoid, normalizer_fn=None) * FLAGS.text_scale
-            angle_map = (slim.conv2d(logits_Xcept.output, 1, 1, activation_fn=tf.nn.sigmoid, normalizer_fn=None) - 0.5) * np.pi/2 # angle is between [-45, 45]
+            geo_map = slim.conv2d(acc, 4, 1, activation_fn=tf.nn.sigmoid, normalizer_fn=None) * FLAGS.text_scale
+            angle_map = (slim.conv2d(acc, 1, 1, activation_fn=tf.nn.sigmoid, normalizer_fn=None) - 0.5) * np.pi/2 # angle is between [-45, 45]
             F_geometry = tf.concat([geo_map, angle_map], axis=-1)
 
     return F_score, F_geometry

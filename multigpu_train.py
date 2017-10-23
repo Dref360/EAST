@@ -157,7 +157,7 @@ def main(argv=None):
                                                                                 input_score_maps: data[2],
                                                                                 input_geo_maps: data[3],
                                                                                 input_training_masks: data[4],
-                                                                                K.learning_phase():True})
+                                                                                K.learning_phase():1})
 
             if np.isnan(tl):
                 print('Loss diverged, stop training')

@@ -157,7 +157,7 @@ def main(argv=None):
                                                                                 input_score_maps: data[2],
                                                                                 input_geo_maps: data[3],
                                                                                 input_training_masks: data[4],
-                                                                                K.learning_phase():1})
+                                                                                K.learning_phase(): 1})
 
             if np.isnan(tl):
                 print('Loss diverged, stop training')
@@ -177,7 +177,8 @@ def main(argv=None):
                 _, tl, summary_str = sess.run([train_op, total_loss, summary_op], feed_dict={input_images: data[0],
                                                                                              input_score_maps: data[2],
                                                                                              input_geo_maps: data[3],
-                                                                                             input_training_masks: data[4]})
+                                                                                             input_training_masks: data[4],
+                                                                                             K.learning_phase(): 1})
                 summary_writer.add_summary(summary_str, global_step=step)
 
 if __name__ == '__main__':

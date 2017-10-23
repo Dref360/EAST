@@ -64,11 +64,12 @@ def model(images, weight_decay=1e-5, is_training=True):
             acc = None
             num_outputs = [None, 128, 64, 32]
             for i in range(1,4):
-                if f_shapes[i-1] != f_shapes[i]:
+                if f_shapes[i-1][1:-1] != f_shapes[i][1:-1]:
                     dum = unpool(f_tensors[i-1]) if acc is None else unpool(acc)
                 else:
                     dum = f_tensors[i-1] if acc is None else acc
-                tmp = tf.concat([dum, f_tensors[i]], axis=-1)
+                previous_output = f_shapes[i-1][-1] if i == 1 else num_outputs[i-1]
+                tmp = tf.Print(tf.concat([dum, slim.conv2d(f_tensors[i],previous_output,1)], axis=-1),[tf.shape(dum),tf.shape(f_tensors[i])],"Iteration :{}".format(i),first_n=1)
                 acc = slim.conv2d(slim.conv2d(tmp,num_outputs[i],1),num_outputs[i],3)
 
             acc = slim.conv2d_transpose(acc,num_outputs[-1],3,2)
